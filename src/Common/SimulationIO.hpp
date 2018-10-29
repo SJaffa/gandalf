@@ -1149,6 +1149,11 @@ bool Simulation<ndim>::WriteSerenFormSnapshotFile
     typedata[ndata][0] = 1;              typedata[ndata][1] = 1;
     typedata[ndata][2] = Nlivehydro;     typedata[ndata][3] = 4;
     typedata[ndata][4] = 20;             ndata++;
+
+    data_id[ndata] = "gpot";
+    typedata[ndata][0] = 1;              typedata[ndata][1] = 1;
+    typedata[ndata][2] = Nlivehydro;     typedata[ndata][3] = 4;
+    typedata[ndata][4] = 20;             ndata++;
   }
 
   if (nbody->Nstar > 0) {
@@ -1259,6 +1264,10 @@ bool Simulation<ndim>::WriteSerenFormSnapshotFile
     // Specific internal energies
     //-------------------------------------------------------------------------
     WriteSerenFormArrayScalar(outfile_format, hydro, &Particle<ndim>::u, types, simunits.u.outscale);
+
+    // SJ: gravitational potential energies
+    //-------------------------------------------------------------------------
+    WriteSerenFormArrayScalar(outfile_format, hydro, &Particle<ndim>::gpot, types, simunits.E.outscale);
   }
   //-----------------------------------------------------------------------------------------------
 
