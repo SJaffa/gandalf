@@ -103,6 +103,7 @@ class SimulationBase
   virtual bool ReadSerenUnformSnapshotFile(string)=0;
   virtual bool WriteSerenUnformSnapshotFile(string)=0;
   virtual bool WriteSerenLiteSnapshotFile(string)=0;
+  virtual bool WriteSinkOutput(string)=0;
 
   std::list<string> keys;
 
@@ -294,6 +295,7 @@ class Simulation : public SimulationBase
   virtual bool ReadSerenUnformSnapshotFile(string);
   virtual bool WriteSerenUnformSnapshotFile(string);
   virtual bool WriteSerenLiteSnapshotFile(string);
+  virtual bool WriteSinkOutput(string);
   virtual void ConvertToCodeUnits(void);
 
 

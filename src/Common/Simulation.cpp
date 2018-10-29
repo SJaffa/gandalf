@@ -535,7 +535,8 @@ string SimulationBase::Output(void)
     nostring = ss.str();
     filename = run_id + ".slite." + nostring;
     ss.str(std::string());
-    WriteSnapshotFile(filename,"slite");
+    //WriteSnapshotFile(filename,"slite");
+    WriteSnapshotFile(filename,"sink");
 
   }
   //-----------------------------------------------------------------------------------------------

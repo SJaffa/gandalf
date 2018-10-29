@@ -20,8 +20,8 @@
 #==================================================================================================
 
 
-CPP                = 
-PYTHON             = python
+CPP                = g++ 
+PYTHON             = python2.7
 COMPILER_MODE      = FAST
 PRECISION          = DOUBLE
 OPENMP             = 1
@@ -32,25 +32,25 @@ BUILD_DEPENDENCIES = 1
 
 # FFTW libary flags and paths.  If paths are empty, tries standard default linux paths.
 #--------------------------------------------------------------------------------------------------
-FFTW               = 0
-FFTW_INCLUDE       =
-FFTW_LIBRARY       =
+FFTW               = 1
+FFTW_INCLUDE       = -I/usr/local/include/
+FFTW_LIBRARY       = -L/usr/local/lib -lfftw3
 
 
 # GNU Scientific library flags and paths.  If paths are empty, tries standard default linux paths.
 #--------------------------------------------------------------------------------------------------
-GSL                =
-GSL_INCLUDE        =
-GSL_LIBRARY        =
-
+GSL                = 1
+GSL_INCLUDE        = -I/home/sarah/gsl/include/
+GSL_LIBRARY        = -L/home/sarah/gsl/lib/ -lgsl -lgslcblas -lm
+ 
 
 # Select location of python and numpy libraries.  If blank, make will try to
 # find the location of the libraries automatically using installed python
 # utilities.  If you have multiple versions of python installed on your
 # computer, then select the prefered version with the PYTHON variable above.
 #--------------------------------------------------------------------------------------------------
-PYLIB =
-NUMPY =
+PYLIB = /home/sarah/anaconda2/lib/python2.7/
+NUMPY = /home/sarah/anaconda2/lib/python2.7/site-packages/numpy
 GTEST = $(GTEST_DIR)
 
 
