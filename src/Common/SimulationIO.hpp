@@ -149,7 +149,7 @@ bool Simulation<ndim>::WriteSinkOutput(string filename)
     ss.str(std::string());
 
     outfile.open(fname.c_str(), std::ofstream::app);
-    outfile << t << "    ";
+    outfile << t*simunits.t.outscale << "    ";
     outfile << Nsteps << "    ";
     for (k=0; k<ndim; k++) outfile << sink.star->r[k] << "    ";
     for (k=0; k<ndim; k++) outfile << sink.star->v[k] << "    ";
