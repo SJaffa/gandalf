@@ -151,23 +151,23 @@ bool Simulation<ndim>::WriteSinkOutput(string filename)
     outfile.open(fname.c_str(), std::ofstream::app);
     outfile << t*simunits.t.outscale << "    ";
     outfile << Nsteps << "    ";
-    for (k=0; k<ndim; k++) outfile << sink.star->r[k] << "    ";
-    for (k=0; k<ndim; k++) outfile << sink.star->v[k] << "    ";
-    for (k=0; k<ndim; k++) outfile << sink.star->a[k] << "    ";
-    for (k=0; k<3; k++) outfile << sink.angmom[k] << "    ";
-    outfile << sink.star->m  << "    ";
-    outfile << sink.menc     << "    ";
-    outfile << sink.mmax     << "    ";
-    outfile << sink.macctot  << "    ";
-    outfile << sink.dmdt     << "    ";
-    outfile << sink.ketot    << "    ";
-    outfile << sink.gpetot   << "    ";
-    outfile << sink.rotketot << "    ";
-    outfile << sink.utot     << "    ";
-    outfile << sink.taccrete << "    ";
-    outfile << sink.trad     << "    ";
-    outfile << sink.trot     << "    ";
-    outfile << sink.tvisc    << "    ";
+    for (k=0; k<ndim; k++) outfile << sink.star->r[k]*simunits.r.outscale << "    ";
+    for (k=0; k<ndim; k++) outfile << sink.star->v[k]*simunits.v.outscale << "    ";
+    for (k=0; k<ndim; k++) outfile << sink.star->a[k]*simunits.a.outscale << "    ";
+    for (k=0; k<3; k++) outfile << sink.angmom[k]*simunits.angmom.outscale << "    ";
+    outfile << sink.star->m*simunits.m.outscale  << "    ";
+    outfile << sink.menc*simunits.m.outscale     << "    ";
+    outfile << sink.mmax*simunits.m.outscale     << "    ";
+    outfile << sink.macctot*simunits.dmdt.outscale  << "    ";
+    outfile << sink.dmdt*simunits.dmdt.outscale     << "    ";
+    outfile << sink.ketot*simunits.E.outscale    << "    ";
+    outfile << sink.gpetot*simunits.E.outscale   << "    ";
+    outfile << sink.rotketot*simunits.E.outscale << "    ";
+    outfile << sink.utot*simunits.u.outscale     << "    ";
+    outfile << sink.taccrete*simunits.t.outscale << "    ";
+    outfile << sink.trad*simunits.t.outscale     << "    ";
+    outfile << sink.trot*simunits.t.outscale     << "    ";
+    outfile << sink.tvisc*simunits.t.outscale    << "    ";
     outfile << endl;
     outfile.close();
 
@@ -897,6 +897,15 @@ bool Simulation<ndim>::ReadSerenFormSnapshotFile(string filename)
       for (i=0; i<hydro->Nhydro; i++) {
         Particle<ndim>& part = hydro->GetParticlePointer(i);
         infile >> part.u;
+      }
+    }
+
+    // SJ edit: gpot
+    //---------------------------------------------------------------------------------------------
+    else if (data_id[j] == "gpot") {
+      for (i=0; i<hydro->Nhydro; i++) {
+        Particle<ndim>& part = hydro->GetParticlePointer(i);
+        infile >> part.gpot;
       }
     }
 
