@@ -470,6 +470,7 @@ void Parameters::SetDefaultValues(void)
   floatparams["DiscIcPlanetEccen"]=0.;
   floatparams["DiscIcPlanetIncl"]=0.;
   floatparams["DustGasRatio"]=0.01;
+  floatparams["radgrad"]=2;
 
   // Regularising initial conditions parameters
   //-----------------------------------------------------------------------------------------------

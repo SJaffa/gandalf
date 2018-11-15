@@ -54,17 +54,17 @@ endif
 # Compiler mode flags
 # -------------------------------------------------------------------------------------------------
 ifeq ($(COMPILER_MODE),FAST)
-GCCOPT   += -O3 -ffast-math -fPIC -fno-exceptions -fno-rtti
+GCCOPT   += -fPIC -O3 -ffast-math -fno-exceptions -fno-rtti
 ICCOPT   += -O3 -fast -fPIC -fno-exceptions
 CLANGOPT += -O3 -ffast-math -fPIC
 else ifeq ($(COMPILER_MODE),DEBUG)
-GCCOPT   += -Og -g -Wall -Wno-unknown-pragmas -Wno-reorder -fbounds-check -fPIC  -fno-rtti #-fprofile-arcs -ftest-coverage
+GCCOPT   += -fPIC -Og -g -Wall -Wno-unknown-pragmas -Wno-reorder -fbounds-check -fno-rtti #-fprofile-arcs -ftest-coverage
 ICCOPT   += -O3 -g -fPIC #-fprofile-arcs -ftest-coverage
 CLANGOPT += -O3 -g -pg -Wall
 else ifeq ($(COMPILER_MODE),STANDARD)
-GCCOPT   += -O3 -fPIC -fno-exceptions -fno-rtti
+GCCOPT   += -fPIC -O3 -fno-exceptions -fno-rtti
 else ifeq ($(COMPILER_MODE),PROFILE)
-GCCOPT   += -O3 -fPIC -fno-exceptions -fno-rtti -pg
+GCCOPT   += -fPIC -O3 -fno-exceptions -fno-rtti -pg
 endif
 
 ifeq ($(OPENMP),1)

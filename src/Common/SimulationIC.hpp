@@ -180,7 +180,7 @@ void Simulation<ndim>::GenerateIC(void)
   else if (ic == "spitzer") {
     icGenerator = new SpitzerExpansionIc<ndim>(this, invndim);
   }
-  else if (ic == "turbcore") {
+  else if (ic == "turbcore"|| ic == "turbcore-uniform"|| ic == "turbcore-radgrad" || ic == "turbcore-gauss") {
     icGenerator = new TurbulentCoreIc<ndim>(this, invndim);
   }
   else if (ic == "box" || ic == "sphere") {

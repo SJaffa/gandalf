@@ -82,6 +82,7 @@ protected:
                      FLOAT *, FLOAT *, NbodyParticle<ndim> &, NbodyParticle<ndim> &);
   void AddRotationalVelocityField(const int, const FLOAT, const FLOAT *, const FLOAT *, FLOAT *);
   void Addr2Sphere(int, FLOAT *, FLOAT *, FLOAT);
+  void AddralphaSphere(int, FLOAT *, FLOAT *, FLOAT, FLOAT, RandomNumber *);
   void AddSinusoidalDensityPerturbation(int, FLOAT, FLOAT, FLOAT *);
   void GenerateTurbulentVelocityField(const int, const int, const DOUBLE, DOUBLE *);
   void InterpolateVelocityField(const int, const int, const FLOAT, const FLOAT,

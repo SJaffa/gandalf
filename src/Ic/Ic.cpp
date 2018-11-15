@@ -620,6 +620,51 @@ void Ic<ndim>::Addr2Sphere
 }
 
 
+//=================================================================================================
+//  Ic::AddralphaSphere
+/// SJ: Add r^-alpha sphere of particles
+//=================================================================================================
+template <int ndim>
+void Ic<ndim>::AddralphaSphere
+ (int Npart,                           ///< [in] No. of particles in sphere
+  FLOAT *r,                            ///< [out] Positions of particles in sphere
+  FLOAT rcentre[ndim],                 ///< [in] Position of sphere centre
+  FLOAT radius,                        ///< [in] Radius of sphere
+  FLOAT radgrad,                       ///< [in] Gradient of radial concentration (alpha)
+  RandomNumber *randnumb)              ///< [inout] Pointer to random number generator
+{
+  int i;                               // Particle counter
+  FLOAT phi;                           // ..
+  FLOAT theta;                         // ..
+  FLOAT sintheta;                      // ..
+  FLOAT costheta;                      // ..
+  FLOAT rpart;                         // ..
+
+  debug2("[Ic::AddralphaSphere]");
+  assert(r);
+
+  // Loop over all required particles
+  //-----------------------------------------------------------------------------------------------
+  for (i=0; i<Npart; i++) {
+
+    // Continously loop until random particle lies inside sphere
+    phi      = (FLOAT) 2.0*pi*randnumb->floatrand();
+    costheta = (FLOAT) 2.0*randnumb->floatrand() - (FLOAT) 1.0;
+    theta    = acos(costheta);
+    sintheta = sin(theta);
+    rpart    = radius*randnumb->floatrand();
+    rpart    = pow(rpart,(1./(ndim-radgrad))); 
+    r[ndim*i + 0] = rpart*sintheta*cos(phi);
+    r[ndim*i + 1] = rpart*sintheta*sin(phi);
+    r[ndim*i + 2] = rpart*costheta;
+
+  }
+  //-----------------------------------------------------------------------------------------------
+
+  return;
+}
+
+
 
 //=================================================================================================
 //  Ic::AddCubicLattice
