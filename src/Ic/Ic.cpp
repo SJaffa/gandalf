@@ -665,6 +665,47 @@ void Ic<ndim>::AddralphaSphere
 }
 
 
+//=================================================================================================
+//  Ic::AddGaussSphere
+/// Add r^-2 sphere of particles
+//=================================================================================================
+template <int ndim>
+void Ic<ndim>::AddGaussSphere
+ (int Npart,                           ///< [in] No. of particles in sphere
+  FLOAT *r,                            ///< [out] Positions of particles in sphere
+  FLOAT rcentre[ndim],                 ///< [in] Position of sphere centre
+  FLOAT radius)                        ///< [in] Radius of sphere
+{
+  int i;                               // Particle counter
+  FLOAT phi;                           // ..
+  FLOAT theta;                         // ..
+  FLOAT sintheta;                      // ..
+  FLOAT costheta;                      // ..
+  FLOAT rpart;                         // ..
+
+  debug2("[Ic::Addr2Sphere]");
+  assert(r);
+
+  // Loop over all required particles
+  //-----------------------------------------------------------------------------------------------
+  for (i=0; i<Npart; i++) {
+
+    // Continously loop until random particle lies inside sphere
+    phi      = (FLOAT) 2.0*pi*randnumb->floatrand();
+    costheta = (FLOAT) 2.0*randnumb->floatrand() - (FLOAT) 1.0;
+    theta    = acos(costheta);
+    sintheta = sin(theta);
+    rpart    = radius*randnumb->floatrand();
+    r[ndim*i + 0] = rpart*sintheta*cos(phi);
+    r[ndim*i + 1] = rpart*sintheta*sin(phi);
+    r[ndim*i + 2] = rpart*costheta;
+
+  }
+  //-----------------------------------------------------------------------------------------------
+
+  return;
+}
+
 
 //=================================================================================================
 //  Ic::AddCubicLattice

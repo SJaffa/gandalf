@@ -391,18 +391,10 @@ void TurbulentCoreIc<ndim>::Generate(void)
 
 		  // Create the sphere depending on the choice of initial particle distribution
 		  if (particle_dist == "random") {
-		    Ic<ndim>::AddRandomSphere(Npart, rcentre, radius, r, sim->randnumb);
-		  }
-		  else if (particle_dist == "cubic_lattice" || particle_dist == "hexagonal_lattice") {
-		    Nsphere = Ic<ndim>::AddLatticeSphere(Npart, rcentre, radius, particle_dist, r, sim->randnumb);
-		    assert(Nsphere <= Npart);
-		    if (Nsphere != Npart)
-	  cout << "Warning! Unable to converge to required "
-			   << "no. of ptcls due to lattice symmetry" << endl;
-		    Npart = Nsphere;
+		    Ic<ndim>::AddGaussSphere(Npart, rcentre, radius, r, sim->randnumb);
 		  }
 		  else {
-		    string message = "Invalid particle distribution option";
+		    string message = "Invalid particle distribution option: random only";
 		    ExceptionHandler::getIstance().raise(message);
 		  }
 
