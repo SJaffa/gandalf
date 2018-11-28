@@ -674,7 +674,8 @@ void Ic<ndim>::AddGaussSphere
  (int Npart,                           ///< [in] No. of particles in sphere
   FLOAT *r,                            ///< [out] Positions of particles in sphere
   FLOAT rcentre[ndim],                 ///< [in] Position of sphere centre
-  FLOAT radius)                        ///< [in] Radius of sphere
+  FLOAT radius,                        ///< [in] Radius of sphere
+  RandomNumber *randnumb)              ///< [inout] Pointer to random number generator
 {
   int i;                               // Particle counter
   FLOAT phi;                           // ..

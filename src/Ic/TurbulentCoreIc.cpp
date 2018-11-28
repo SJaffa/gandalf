@@ -373,7 +373,7 @@ void TurbulentCoreIc<ndim>::Generate(void)
 		  FLOAT temp0      = simparams->floatparams["temp0"];
 		  string particle_dist = simparams->stringparams["particle_distribution"];
 
-		  debug2("[Ic::TurbUniform]");
+		  debug2("[Ic::TurbGauss]");
 
 		  // Convert any parameters to code units
 		  mcloud /= simunits.m.outscale;
@@ -391,7 +391,7 @@ void TurbulentCoreIc<ndim>::Generate(void)
 
 		  // Create the sphere depending on the choice of initial particle distribution
 		  if (particle_dist == "random") {
-		    Ic<ndim>::AddGaussSphere(Npart, rcentre, radius, r, sim->randnumb);
+		    Ic<ndim>::AddGaussSphere(Npart, r, rcentre, radius, sim->randnumb);
 		  }
 		  else {
 		    string message = "Invalid particle distribution option: random only";
