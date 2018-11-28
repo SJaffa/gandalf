@@ -1246,7 +1246,7 @@ void Simulation<ndim>::AllocateParticleMemory(void)
 
     // If sink particles are employed, allow enough memory for new sinks
     if (sink_particles == 1) {
-      N = max(nbody->Nstar, 1024);
+      N = max(nbody->Nstar, 65536);
     }
     else N = nbody->Nstar;
 
