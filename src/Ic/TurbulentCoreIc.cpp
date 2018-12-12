@@ -236,7 +236,7 @@ void TurbulentCoreIc<ndim>::Generate(void)
 		  FLOAT power_turb = simparams->floatparams["power_turb"];
 		  FLOAT radius     = simparams->floatparams["radius"];
 		  FLOAT temp0      = simparams->floatparams["temp0"];
-      FLOAT radgrad    = simparams->floatparams["radgrad"];
+		  FLOAT radgrad    = simparams->floatparams["radgrad"];
 		  string particle_dist = simparams->stringparams["particle_distribution"];
 
 		  debug2("[Ic::TurbRadgrad]");
@@ -247,6 +247,7 @@ void TurbulentCoreIc<ndim>::Generate(void)
 		  temp0  /= simunits.temp.outscale;
 
 		  // Calculate gravitational potential energy of uniform density spherical cloud
+		  // SJ:NEED TO UPDATE
 		  gpecloud = (FLOAT) 0.6*mcloud*mcloud/radius;
 
 		  r = new FLOAT[ndim*Npart];
@@ -381,6 +382,7 @@ void TurbulentCoreIc<ndim>::Generate(void)
 		  temp0  /= simunits.temp.outscale;
 
 		  // Calculate gravitational potential energy of uniform density spherical cloud
+		  // SJ:NEED TO UPDATE
 		  gpecloud = (FLOAT) 0.6*mcloud*mcloud/radius;
 
 		  r = new FLOAT[ndim*Npart];

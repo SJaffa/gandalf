@@ -667,7 +667,8 @@ void Ic<ndim>::AddralphaSphere
 
 //=================================================================================================
 //  Ic::AddGaussSphere
-/// Add r^-2 sphere of particles
+/// Add sphere of particles with Gaussian density profile
+/// SJ:NEED TO UPDATE (still r^-2 atm)
 //=================================================================================================
 template <int ndim>
 void Ic<ndim>::AddGaussSphere
