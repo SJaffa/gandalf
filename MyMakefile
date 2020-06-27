@@ -22,7 +22,7 @@
 
 CPP                = g++ 
 PYTHON             = python2.7
-COMPILER_MODE      = DEBUG
+COMPILER_MODE      = FAST
 PRECISION          = DOUBLE
 OPENMP             = 1
 PYSNAP_PRECISION   = DOUBLE
@@ -49,7 +49,7 @@ GSL_LIBRARY        = -L/home/sarah/gsl/lib/ -lgsl -lgslcblas -lm
 # utilities.  If you have multiple versions of python installed on your
 # computer, then select the prefered version with the PYTHON variable above.
 #--------------------------------------------------------------------------------------------------
-PYLIB = /home/sarah/anaconda2/lib/python2.7/ -I/usr/include/python2.7
+PYLIB = /home/sarah/anaconda2/lib/python2.7
 NUMPY = /home/sarah/anaconda2/lib/python2.7/site-packages/numpy
 GTEST = $(GTEST_DIR)
 
