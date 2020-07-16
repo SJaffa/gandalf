@@ -55,7 +55,6 @@ void GradhSphSimulation<ndim>::ProcessSphParameters(void)
 {
   aviscenum avisc = noav;              // Artificial viscosity enum
   acondenum acond = noac;              // Artificial conductivity enum
-  eosenum eos_type = noeos;            // Gas EOS enum
   tdaviscenum tdavisc = notdav;        // Time-dependent viscosity enum
 
   // Local references to parameter variables for brevity
@@ -108,25 +107,20 @@ void GradhSphSimulation<ndim>::ProcessSphParameters(void)
   }
 
   // Set gas EOS values
-  if (stringparams["gas_eos"] == "isothermal") {
-    eos_type = isothermal;
-  }
-  else if (stringparams["gas_eos"] == "barotropic") {
-    eos_type = barotropic;
-  }
-  else if (stringparams["gas_eos"] == "barotropic2") {
-    eos_type = barotropic2;
+  bool energy_integration = true;
+  if (stringparams["gas_eos"] == "isothermal"  || stringparams["gas_eos"] == "locally_isothermal"  ||
+      stringparams["gas_eos"] == "polytropic"  || stringparams["gas_eos"] == "barotropic" ||
+      stringparams["gas_eos"] == "barotropic2" || stringparams["gas_eos"] == "constant_temp" ||
+      stringparams["gas_eos"] == "disc_locally_isothermal") {
+    energy_integration = false;
   }
   else if (stringparams["gas_eos"] == "energy_eqn") {
-    eos_type = energy_eqn;
+    energy_integration = true;
   }
-  else if (stringparams["gas_eos"] == "constant_temp") {
-    eos_type = constant_temp;
-  }
-  else if (stringparams["gas_eos"] == "rad_ws" || stringparams["gas_eos"] == "radws") {
-    eos_type = radws;
-  }
-  else {
+  else if (stringparams["gas_eos"] == "radws") {
+    energy_integration = (stringparams["energy_integration"] == "null" ||
+                          stringparams["energy_integration"] == "none");
+  } else {
     string message = "Unrecognised eos parameter : gas_eos = " + simparams->stringparams["gas_eos"];
     ExceptionHandler::getIstance().raise(message);
   }
@@ -175,14 +169,14 @@ void GradhSphSimulation<ndim>::ProcessSphParameters(void)
   // Create SPH particle integration object
   //-----------------------------------------------------------------------------------------------
   if (stringparams["sph_integration"] == "lfkdk") {
-    sphint = new SphLeapfrogKDK<ndim, GradhSphParticle>
+    hydroint = new SphLeapfrogKDK<ndim, GradhSphParticle>
       (floatparams["accel_mult"], floatparams["courant_mult"],
-       floatparams["energy_mult"], eos_type, tdavisc);
+       floatparams["energy_mult"], energy_integration, tdavisc);
   }
   else if (stringparams["sph_integration"] == "lfdkd") {
-    sphint = new SphLeapfrogDKD<ndim, GradhSphParticle>
+    hydroint = new SphLeapfrogDKD<ndim, GradhSphParticle>
       (floatparams["accel_mult"], floatparams["courant_mult"],
-       floatparams["energy_mult"], eos_type, tdavisc);
+       floatparams["energy_mult"], energy_integration, tdavisc);
     integration_step = max(integration_step,2);
   }
   else {
@@ -191,15 +185,19 @@ void GradhSphSimulation<ndim>::ProcessSphParameters(void)
     ExceptionHandler::getIstance().raise(message);
   }
 
+  // Radiative feedback object
+  //-----------------------------------------------------------------------------------------------
+  if (intparams["rad_fb"]) {
+    radfb = new RadiativeFB<ndim>(&simunits, simparams);
+ 	} else {
+    radfb = NULL;
+  }
 
   // Energy integration object
   //-----------------------------------------------------------------------------------------------
-  if (stringparams["energy_integration"] == "Radws" ||
-      stringparams["energy_integration"] == "radws"||
-      stringparams["energy_integration"] == "rad_ws") {
+  if (stringparams["energy_integration"] == "radws") {
     uint = new EnergyRadws<ndim, GradhSphParticle>
-      (floatparams["energy_mult"], stringparams["radws_table"],
-       floatparams["temp_ambient"], &simunits, sph->eos);
+      (simparams, &simunits, (Radws<ndim> *)sph->eos, radfb);
   }
   else if (stringparams["energy_integration"] == "null" ||
            stringparams["energy_integration"] == "none") {
@@ -231,31 +229,30 @@ void GradhSphSimulation<ndim>::ProcessSphParameters(void)
 
   // Create neighbour searching object based on chosen method in params file
   //-----------------------------------------------------------------------------------------------
+  string tree_type = stringparams["neib_search"] ;
+  if (gas_radiation == "tree_ray") {
+    if (tree_type == "octtree" && ndim == 3) {
+      tree_type = "treeray" ;
+    }
+    else {
+      string message = "Error: Tree Ray needs an Oct Tree and ndim=3";
+      ExceptionHandler::getIstance().raise(message);
+    }
+  }
 
+  sphneib = new GradhSphTree<ndim,GradhSphParticle>
+    (tree_type, intparams["Nleafmax"], Nmpi, intparams["pruning_level_min"], intparams["pruning_level_max"],
+     floatparams["thetamaxsqd"], sph->kernp->kernrange, floatparams["macerror"],
+     stringparams["gravity_mac"], stringparams["multipole"], &simbox, sph->kernp, timing, sph->types);
 
-   string tree_type = stringparams["neib_search"] ;
-   if (gas_radiation == "tree_ray") {
-     if (tree_type == "octtree" && ndim == 3) {
-       tree_type = "treeray" ;
-     }
-     else {
-       string message = "Error: Tree Ray needs an Oct Tree and ndim=3";
-       ExceptionHandler::getIstance().raise(message);
-     }
-   }
+  // Here I do a horrible hack to get at the underlying tree, needed for the dust.
+  TreeBase<ndim> * t = NULL, * gt = NULL, *mpit = NULL ;
+  typedef GradhSphTree<ndim,GradhSphParticle> TreeType ;
+  TreeType *pTree = reinterpret_cast<TreeType*>(sphneib) ;
+  t = pTree->tree ; gt = pTree->ghosttree ;
 
-   sphneib = new GradhSphTree<ndim,GradhSphParticle>
-      (tree_type, intparams["Nleafmax"], Nmpi, intparams["pruning_level_min"], intparams["pruning_level_max"],
-       floatparams["thetamaxsqd"], sph->kernp->kernrange, floatparams["macerror"],
-       stringparams["gravity_mac"], stringparams["multipole"], &simbox, sph->kernp, timing, sph->types);
-       
-   // Here I do a horrible hack to get at the underlying tree, needed for the dust.
-   TreeBase<ndim> * t = NULL, * gt = NULL, *mpit = NULL ;
-   typedef GradhSphTree<ndim,GradhSphParticle> TreeType ;
-   TreeType *pTree = reinterpret_cast<TreeType*>(sphneib) ;
-   t = pTree->tree ; gt = pTree->ghosttree ;
 #ifdef MPI_PARALLEL
-    mpit = pTree->mpighosttree ;
+  mpit = pTree->mpighosttree ;
 #endif
 
 
@@ -275,7 +272,7 @@ void GradhSphSimulation<ndim>::ProcessSphParameters(void)
   }
   else if (gas_radiation == "ionisation") {
     radiation = new MultipleSourceIonisation<ndim,GradhSphParticle>
-      (sphneib, floatparams["mu_bar"], floatparams["mu_ion"], floatparams["temp0"],
+      (pTree, floatparams["mu_bar"], floatparams["mu_ion"], floatparams["temp0"],
        floatparams["temp_ion"], floatparams["Ndotmin"], floatparams["gamma_eos"],
        pow(simunits.r.outscale*simunits.r.outcgs, 3.)/
        pow(simunits.m.outscale*simunits.m.outcgs, 2.),
@@ -324,7 +321,13 @@ void GradhSphSimulation<ndim>::ProcessSphParameters(void)
 
   // Setup the dust force object
   //-----------------------------------------------------------------------------------------------
-  sphdust = DustFactory<ndim, GradhSphParticle>::ProcessParameters(simparams, timing, sph->types, t, gt, mpit) ;
+  sphdust = DustFactory<ndim, GradhSphParticle>::ProcessParameters(simparams, timing, simunits,
+                                                                   sph->types, simbox,
+                                                                   t, gt, mpit) ;
+
+#if defined MPI_PARALLEL
+  if (sphdust != NULL) sphdust->SetMpiControl(mpicontrol);
+#endif
 
   return;
 }

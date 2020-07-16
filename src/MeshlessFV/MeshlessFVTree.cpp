@@ -84,12 +84,11 @@ MeshlessFVTree<ndim,ParticleType>::~MeshlessFVTree()
 template <int ndim, template<int> class ParticleType>
 void MeshlessFVTree<ndim,ParticleType>::UpdateAllProperties
  (MeshlessFV<ndim> *mfv,                   ///< [in] Pointer to SPH object
-  Nbody<ndim> *nbody,                      ///< [in] Pointer to N-body object
-  DomainBox<ndim> &simbox)                 ///< [in] Simulation domain box
+  Nbody<ndim> *nbody)                      ///< [in] Pointer to N-body object
 {
   int cactive;                             // No. of active tree cells
-  vector<TreeCellBase<ndim> > celllist;            // List of active cells
-  //ParticleType<ndim> *partdata = static_cast<ParticleType<ndim>* > (sph_gen);
+  vector<TreeCellBase<ndim> > celllist;    // List of active cells
+  MeshlessFVParticle<ndim> *mfvdata = mfv->GetMeshlessFVParticleArray();
 #ifdef MPI_PARALLEL
   double twork = timing->RunningTime();  // Start time (for load balancing)
 #endif
@@ -97,23 +96,16 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllProperties
   debug2("[MeshlessFVTree::UpdateAllProperties]");
   CodeTiming::BlockTimer timer = timing->StartNewTimer("MFV_PROPERTIES");
 
-  int Ntot = mfv->Ntot;
-  MeshlessFVParticle<ndim> *mfvdata = mfv->GetMeshlessFVParticleArray();
-
-
-
   // Find list of all cells that contain active particles
   cactive = tree->ComputeActiveCellList(celllist);
 
   // If there are no active cells, return to main loop
-  if (cactive == 0) {
-    return;
-  }
+  if (cactive == 0) return;
 
 
   // Set-up all OMP threads
   //===============================================================================================
-#pragma omp parallel default(none) shared(cactive,celllist,cout,nbody,mfv,mfvdata,Ntot)
+#pragma omp parallel default(shared)
   {
 #if defined _OPENMP
     const int ithread = omp_get_thread_num();
@@ -161,7 +153,7 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllProperties
 
       // Skip particles that have an up-to-date density estimate
       for (j=0; j<Nactive; j++) {
-        if (mfvdata[activelist[j]].flags.check_flag(update_density)) {
+        if (mfvdata[activelist[j]].flags.check(update_density)) {
           activepart[j] = mfvdata[activelist[j]];
         }
         else {
@@ -280,7 +272,7 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllProperties
       // Once cell is finished, copy all active particles back to main memory and record that we
       // have done a density update
       for (j=0; j<Nactive; j++) {
-        activepart[j].flags.unset_flag(update_density) ;
+        activepart[j].flags.unset(update_density) ;
         mfvdata[activelist[j]] = activepart[j];
       }
 
@@ -360,7 +352,7 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGradientMatrices
 
   // Set-up all OMP threads
   //===============================================================================================
-#pragma omp parallel default(none) shared(cactive,celllist,nbody,mfv,mfvdata,Ntot,simbox)
+#pragma omp parallel default(shared)
   {
 #if defined _OPENMP
     const int ithread = omp_get_thread_num();
@@ -370,10 +362,8 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGradientMatrices
     int cc;                                        // Aux. cell counter
     int i;                                         // Particle id
     int j;                                         // Aux. particle counter
-    int jj;                                        // Aux. particle counter
     int k;                                         // Dimension counter
     int Nactive;                                   // ..
-    int Nneibmax    = Nneibmaxbuf[ithread];        // ..
     int* activelist = activelistbuf[ithread];      // ..
     int* levelneib  = levelneibbuf[ithread];       // ..
     ParticleType<ndim>* activepart = activepartbuf[ithread];   // ..
@@ -418,6 +408,10 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGradientMatrices
         NeighbourList<GradientParticle> neiblist =
             neibmanager.GetParticleNeib(activepart[j],hmask,do_pair_once);
 
+#if defined(VERIFY_ALL)
+        neibmanager.VerifyNeighbourList(i, mfv->Nhydro, mfvdata, "all");
+        neibmanager.VerifyReducedNeighbourList(i, neiblist, mfv->Nhydro, mfvdata, hmask, "all");
+#endif
         // Compute all neighbour contributions to gradients
         mfv->ComputeGradients(activepart[j], neiblist);
 
@@ -442,6 +436,7 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGradientMatrices
         }
         for (int var=0; var<ndim+2; var++) {
           for (k=0; k<ndim; k++) mfvdata[i].grad[var][k] = activepart[j].grad[var][k];
+          mfvdata[i].alpha_slope[var] = activepart[j].alpha_slope[var];
         }
         mfvdata[i].vsig_max = activepart[j].vsig_max;
         mfvdata[i].levelneib = activepart[j].levelneib;
@@ -508,7 +503,6 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGodunovFluxes
   for (int t = neibmanagerbufflux.size(); t < Nthreads; ++t)
     neibmanagerbufflux.push_back(NeighbourManagerFlux(mfv, simbox));
 
-  int Nhydro = mfv->Nhydro ;
   int Ntot = mfv->Ntot;
   MeshlessFVParticle<ndim> *mfvdata = mfv->GetMeshlessFVParticleArray();
 
@@ -522,7 +516,7 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGodunovFluxes
 
   // Set-up all OMP threads
   //===============================================================================================
-#pragma omp parallel default(none) shared(cactive,celllist,mfv,mfvdata, Nhydro, Ntot, simbox)
+#pragma omp parallel default(shared) 
   {
 #if defined _OPENMP
     const int ithread = omp_get_thread_num();
@@ -530,16 +524,13 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGodunovFluxes
     const int ithread = 0;
 #endif
     int i;                                         // Particle id
-    int j;                                         // Aux. particle counter
     int k;                                         // Dimension counter
     int Nactive;                                   // ..
-    int Nneibmax      = Nneibmaxbuf[ithread];      // ..
     int* activelist   = activelistbuf[ithread];    // ..
     FLOAT (*dQBuffer)[ndim+2]      = new FLOAT[Ntot][ndim+2];  // ..
     FLOAT (*fluxBuffer)[ndim+2]    = new FLOAT[Ntot][ndim+2];  // ..
     FLOAT (*rdmdtBuffer)[ndim]     = new FLOAT[Ntot][ndim];    // ..
     ParticleType<ndim>* activepart = activepartbuf[ithread];   // ..
-    ParticleType<ndim>* neibpart   = neibpartbuf[ithread];     // ..
     NeighbourManager<ndim,FluxParticle>& neibmanager = neibmanagerbufflux[ithread];
 
     for (int i=0; i<Ntot; i++) {
@@ -587,6 +578,10 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGodunovFluxes
         NeighbourList<FluxParticle> neiblist =
             neibmanager.GetParticleNeib(activepart[j],hydromask,do_pair_once);
 
+#if defined(VERIFY_ALL)
+        neibmanager.VerifyNeighbourList(i, mfv->Nhydro, mfvdata, "all");
+#endif
+
         // Compute all neighbour contributions to hydro fluxes
         mfv->ComputeGodunovFlux(activepart[j], neiblist, timestep);
 
@@ -600,7 +595,7 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGodunovFluxes
     	const int i=neighbour.first;
     	FluxParticle& neibpart=*(neighbour.second);
         if (!neibpart.flags.is_mirror()) {
-	        if (neibpart.flags.check_flag(active))
+	        if (neibpart.flags.check(active))
 	          for (k=0; k<ndim+2; k++) fluxBuffer[i][k] += neibpart.dQdt[k];
           for (k=0; k<ndim+2; k++) dQBuffer[i][k] += neibpart.dQ[k];
           for (k=0; k<ndim; k++) rdmdtBuffer[i][k] += neibpart.rdmdt[k];
@@ -623,10 +618,10 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateGodunovFluxes
 #pragma omp critical
     {
       for (i=0; i<Ntot; i++) {
-        if (mfvdata[i].flags.check_flag(active)) {
-          for (int k=0; k<ndim; k++) mfvdata[i].rdmdt[k] += rdmdtBuffer[i][k];
+        if (mfvdata[i].flags.check(active)) {
           for (int k=0; k<ndim+2; k++) mfvdata[i].dQdt[k] += fluxBuffer[i][k];
         }
+        for (int k=0; k<ndim; k++) mfvdata[i].rdmdt[k] += rdmdtBuffer[i][k];
         for (int k=0; k<ndim+2; k++) mfvdata[i].dQ[k] += dQBuffer[i][k];
       }
     }
@@ -697,7 +692,7 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllGravForces
 
   // Set-up all OMP threads
   //===============================================================================================
-#pragma omp parallel default(none) shared(celllist,cactive,ewald,mfv,nbody,partdata,simbox,cout)
+#pragma omp parallel default(shared)
   {
 #if defined _OPENMP
     const int ithread = omp_get_thread_num();
@@ -708,14 +703,9 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllGravForces
     int Nactive;                                 // ..
     FLOAT aperiodic[ndim];                       // ..
     FLOAT draux[ndim];                           // Aux. relative position vector
-    FLOAT drsqd;                                 // Distance squared
-    FLOAT hrangesqdi;                            // Kernel gather extent
-    FLOAT macfactor;                             // Gravity MAC factor
     FLOAT potperiodic;                           // ..
-    FLOAT rp[ndim];                              // ..
     int *activelist  = activelistbuf[ithread];   // ..
     ParticleType<ndim>* activepart  = activepartbuf[ithread];   // ..
-    ParticleType<ndim>* neibpart    = neibpartbuf[ithread];     // ..
     Typemask gravmask = mfv->types.gravmask;
     NeighbourManagerGrav neibmanager = neibmanagerbufgrav[ithread];
     Typemask hydromask ;
@@ -763,17 +753,16 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllGravForces
         // Loop over all active particles in the cell
         //-------------------------------------------------------------------------------------------
         for (int j=0; j<Nactive; j++) {
-          const int i = activelist[j];
 
           // Only calculate gravity for active particle types that have self-gravity activated
-          if (mfv->types[activepart[j].ptype].self_gravity){
+          if (mfv->types[activepart[j].ptype].self_gravity) {
 
-		    GravityNeighbourLists<GravParticle> neiblists =
-		        neibmanager.GetParticleNeibGravity(activepart[j],hydromask);
-
+            GravityNeighbourLists<GravParticle> neiblists =
+              neibmanager.GetParticleNeibGravity(activepart[j],hydromask);
 
             // Compute forces with hydro neighbours
             mfv->ComputeSmoothedGravForces(activepart[j], neiblists.neiblist);
+
             // Compute forces with non-hydro neighbours
             mfv->ComputeSmoothedGravForces(activepart[j], neiblists.smooth_gravlist);
 
@@ -791,12 +780,11 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllGravForces
             }
 
             // Add the periodic correction force for SPH and direct-sum neighbours
-            if (simbox.PeriodicGravity){
-              int Ntotneib = neibmanager.GetNumAllNeib() ;
+            if (simbox.PeriodicGravity) {
+              int Ntotneib = neibmanager.GetNumAllNeib();
+
               for (int jj=0; jj<Ntotneib; jj++) {
-
-                if (!gravmask[neibmanager[jj].ptype]) continue ;
-
+                if (!gravmask[neibmanager[jj].ptype]) continue;
                 for (int k=0; k<ndim; k++) draux[k] = neibmanager[jj].r[k] - activepart[j].r[k];
                 ewald->CalculatePeriodicCorrection(neibmanager[jj].m, draux, aperiodic, potperiodic);
                 for (int k=0; k<ndim; k++) activepart[j].atree[k] += aperiodic[k];
@@ -825,6 +813,11 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllGravForces
         }
       } // End of self-gravity for this cell
 
+      // Save the hydro potential (radws cooling)
+      for (int j=0; j<Nactive; j++) {
+        activepart[j].gpot_hydro = activepart[j].gpot;
+      }
+
       // Compute all star forces for active particles
       for (int j=0; j<Nactive; j++) {
         if (activelist[j] < mfv->Nhydro) {
@@ -837,7 +830,8 @@ void MeshlessFVTree<ndim,ParticleType>::UpdateAllGravForces
         const int i = activelist[j];
         for (int k=0; k<ndim; k++) partdata[i].a[k]     += activepart[j].atree[k];
         for (int k=0; k<ndim; k++) partdata[i].atree[k] += activepart[j].atree[k];
-        partdata[i].gpot  += activepart[j].gpot;
+        partdata[i].gpot        += activepart[j].gpot;
+        partdata[i].gpot_hydro  += activepart[j].gpot_hydro;
       }
 
     }

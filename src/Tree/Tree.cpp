@@ -52,6 +52,36 @@ using namespace std;
 
 
 //=================================================================================================
+//  Tree::ComputeAllParticleList
+/// Returns the number (Nall) and list of ids (partlist) of all 
+/// SPH particles in the given cell.
+//=================================================================================================
+template <int ndim, template<int> class ParticleType, template<int> class TreeCell>
+int Tree<ndim,ParticleType,TreeCell>::ComputeAllParticleList
+ (TreeCellBase<ndim> &cell,                ///< [in] Pointer to cell
+  Particle<ndim> *part_gen,        ///< [in] Pointer to particle data array
+  int *partlist)                     ///< [out] List of active particles in cell
+{
+  ParticleType<ndim>* partdata = reinterpret_cast<ParticleType<ndim>* >(part_gen) ;
+  const int ilast = cell.ilast;        // i.d. of last particle in cell c
+  int i = cell.ifirst;                 // Local particle id (set to first ptcl id)
+  int Npart = 0;                     // No. of particles in cell
+
+  // Walk through linked list to obtain list and number of ptcls.
+  while (i != -1) {
+    if (i < Ntot && !partdata[i].flags.is_dead())
+      partlist[Npart++] = i;
+    if (i == ilast) break;
+    i = inext[i];
+    assert(i < Ntot);
+  };
+
+  assert(Npart <= Nleafmax);
+  return Npart;
+}
+
+
+//=================================================================================================
 //  Tree::ComputeActiveParticleList
 /// Returns the number (Nactive) and list of ids (activelist) of all active
 /// SPH particles in the given cell.
@@ -69,7 +99,7 @@ int Tree<ndim,ParticleType,TreeCell>::ComputeActiveParticleList
 
   // Walk through linked list to obtain list and number of active ptcls.
   while (i != -1) {
-    if (i < Ntot && partdata[i].flags.check_flag(active) && !partdata[i].flags.is_dead())
+    if (i < Ntot && partdata[i].flags.check(active) && !partdata[i].flags.is_dead())
       activelist[Nactive++] = i;
     if (i == ilast) break;
     i = inext[i];
@@ -80,6 +110,39 @@ int Tree<ndim,ParticleType,TreeCell>::ComputeActiveParticleList
   return Nactive;
 }
 
+
+
+//=================================================================================================
+//  Tree::ComputeAllCellList
+/// Return the number of cells containing particles and
+/// modifies in place the i.d. list of cells contains active particles, 'celllist'
+//=================================================================================================
+template <int ndim, template<int> class ParticleType, template<int> class TreeCell>
+int Tree<ndim,ParticleType,TreeCell>::ComputeAllCellList
+ (vector<TreeCellBase<ndim> >& celllist)            ///< Array containing copies of cells with active ptcls
+{
+  int c;                               // Cell counter
+
+#if defined (MPI_PARALLEL)
+  celllist.reserve(Ncellmax);
+#else
+  celllist.reserve(gtot);
+#endif
+
+  for (c=0; c<Ncell; c++) {
+    if (celldata[c].N <= Nleafmax && celldata[c].copen == -1 && celldata[c].N > 0) {
+      celllist.push_back(TreeCellBase<ndim>(celldata[c]));
+    }
+  }
+
+#ifdef MPI_PARALLEL
+  for (c=Ncell; c<Ncell+Nimportedcell; c++) {
+    if (celldata[c].Nactive > 0) celllist.push_back(TreeCellBase<ndim>(celldata[c]));
+  }
+#endif
+
+  return celllist.size();
+}
 
 
 //=================================================================================================
@@ -224,6 +287,8 @@ int Tree<ndim,ParticleType,TreeCell>::ComputeGatherNeighbourList
   assert(partdata != NULL);
   assert(neiblist != NULL);
 
+  if (celldata[0].N == 0)
+    return Nneib ;
 
   //===============================================================================================
   while (cc < Ncell) {
@@ -631,20 +696,16 @@ void Tree<ndim,ParticleType,TreeCell>::ComputeGravityInteractionAndGhostList
 {
   int cc = 0;                          // Cell counter
   FLOAT dr[ndim];                      // Relative position vector
-  FLOAT dr_corr[ndim];                 // Periodic correction vector
   FLOAT rc[ndim];                      // Position of cell
-
-  const GhostNeighbourFinder<ndim> GhostFinder(_domain, cell) ;
-
+  const GhostNeighbourFinder<ndim> GhostFinder(_domain, cell);
   assert(GhostFinder.MaxNumGhosts() == 1) ;
 
   // Make local copies of important cell properties
-  const FLOAT hrangemaxsqd = pow(cell.rmax + kernrange*cell.hmax,2);
-  const FLOAT rmax = cell.rmax;
-  const FLOAT amin = cell.amin;
+  const FLOAT hrangemax = kernrange*cell.hmax;
+  const FLOAT rmax      = cell.rmax;
+  const FLOAT amin      = cell.amin;
   const FLOAT macfactor = cell.macfactor;
   for (int k=0; k<ndim; k++) rc[k] = cell.rcell[k];
-  for (int k=0; k<ndim; k++) dr_corr[k] = 0 ;
 
   // Start with root cell and walk through entire tree
   // Walk through all cells in tree to determine particle and cell interaction lists
@@ -658,8 +719,8 @@ void Tree<ndim,ParticleType,TreeCell>::ComputeGravityInteractionAndGhostList
 
     // Check if bounding spheres overlap with each other (for potential SPH neibs)
     //---------------------------------------------------------------------------------------------
-    if (drsqd <= pow(celldata[cc].rmax + cell.rmax + kernrange*cell.hmax,2) ||
-        drsqd <= pow(cell.rmax + celldata[cc].rmax + kernrange*celldata[cc].hmax,2)) {
+    if (drsqd <= pow(celldata[cc].rmax + rmax + hrangemax, 2) ||
+        drsqd <= pow(rmax + celldata[cc].rmax + kernrange*celldata[cc].hmax,2)) {
 
       // If not a leaf-cell, then open cell to first child cell
       if (celldata[cc].copen != -1) {
@@ -1014,6 +1075,7 @@ bool Tree<ndim,ParticleType,TreeCell>::ComputeSignalVelocityFromDistantInteracti
             if (dr > 0) {
               dr = sqrt(dr) ;
               dvdr /= dr + small_number ;
+              dr = max(dr, part.h);
 
               FLOAT vsig = part.sound + neibpart[l].sound - dvdr ;
               part.vsig_max = max(part.vsig_max, vsig*part.h/dr) ;
@@ -1851,7 +1913,7 @@ void Tree<ndim,ParticleType,TreeCell>::UnpackParticlesAndCellsFromMPITransfer
   typename TreeCell<ndim>::HandlerType handler_cell;
   typedef typename TreeCell<ndim>::HandlerType::DataType StreamlinedCell;
 
-  ParticleType<ndim>* partdata = static_cast<ParticleType<ndim>* > (hydro->GetParticleArray());
+  ParticleType<ndim>* partdata = hydro->template GetParticleArray<ParticleType>();
 
 
   //---------------------------------------------------------------------------------------------
@@ -1928,7 +1990,7 @@ void Tree<ndim,ParticleType,TreeCell>::UnpackParticlesAndCellsForMPIReturn
  vector<char>& recv_buffer,
  Hydrodynamics<ndim>* hydro)
  {
-  ParticleType<ndim>* partdata = static_cast<ParticleType<ndim>* > (hydro->GetParticleArray() );
+  ParticleType<ndim>* partdata = hydro->template GetParticleArray<ParticleType>();
 
   typename ParticleType<ndim>::HandlerType handler;
   typedef typename ParticleType<ndim>::HandlerType::ReturnDataType StreamlinedPart;
@@ -2009,4 +2071,3 @@ template class Tree<3,SM2012SphParticle,BruteForceTreeCell>;
 template class Tree<1,MeshlessFVParticle,BruteForceTreeCell>;
 template class Tree<2,MeshlessFVParticle,BruteForceTreeCell>;
 template class Tree<3,MeshlessFVParticle,BruteForceTreeCell>;
-

@@ -109,22 +109,47 @@ void MfvMuscl<ndim, kernelclass,SlopeLimiter>::ComputeGodunovFlux
     for (k=0; k<ndim; k++) draux[k] = neibpart[j].r[k] - part.r[k];
     drsqd = DotProduct(draux, draux, ndim);
 
-
-    // Calculate psitilda values
-    for (k=0; k<ndim; k++) {
-      psitildai[k] = (FLOAT) 0.0;
-      psitildaj[k] = (FLOAT) 0.0;
-      for (int kk=0; kk<ndim; kk++) {
-        psitildai[k] += neibpart[j].B[k][kk]*draux[kk]*neibpart[j].hfactor*
-          kern.w0_s2(drsqd*invh_j*invh_j)*volume_j;
-        psitildaj[k] -= part.B[k][kk]*draux[kk]*part.hfactor*
-          kern.w0_s2(drsqd*invh_i*invh_i)*volume_i;
+    // Compute psi-tilda values using integral / sph gradients.
+    if (not part.flags.check(bad_gradients)) {
+      for (k=0; k<ndim; k++) {
+        psitildaj[k] = 0;
+        for (int kk=0; kk<ndim; kk++)
+          psitildaj[k] += part.B[k][kk]*draux[kk]*part.hfactor*
+              kern.w0_s2(drsqd*invh_i*invh_i)*volume_i;
       }
-      Aij[k] = volume_i*psitildaj[k] - volume_j*psitildai[k];
+    }
+    else {
+      double dr = sqrt(drsqd) + small_number ;
+      double w = part.hfactor*volume_i * kern.w1(dr*invh_i);
+      for (k=0; k<ndim; k++)  psitildaj[k] = - (draux[k]/dr) * w;
     }
 
-    FLOAT Amag = sqrt(DotProduct(Aij, Aij, ndim) + small_number);
-    for (k=0; k<ndim; k++) Aunit[k] = Aij[k] / Amag;
+    if (not neibpart[j].flags.check(bad_gradients)) {
+      for (k=0; k<ndim; k++) {
+      psitildai[k] = 0;
+      for (int kk=0; kk<ndim; kk++)
+        psitildai[k] -= neibpart[j].B[k][kk]*draux[kk]*neibpart[j].hfactor*
+          kern.w0_s2(drsqd*invh_j*invh_j)*volume_j;
+      }
+    }
+    else {
+      double dr = sqrt(drsqd) + small_number ;
+      double w = neibpart[j].hfactor*volume_j * kern.w1(dr*invh_j);
+      for (k=0; k<ndim; k++) psitildai[k] = + (draux[k]/dr) * w;
+    }
+
+    // Compute the face area
+    for (k=0; k<ndim; k++)
+      Aij[k] = volume_i*psitildaj[k] - volume_j*psitildai[k];
+
+    FLOAT Amag = sqrt(DotProduct(Aij, Aij, ndim));
+    if (Amag > 0) {
+      for (k=0; k<ndim; k++) Aunit[k] = Aij[k] / Amag;
+    } else {
+      // Skip pair as there is no face area to pass flux across.
+      continue ;
+    }
+
 
     // Calculate position and velocity of the face
     if (staticParticles) {
@@ -143,7 +168,7 @@ void MfvMuscl<ndim, kernelclass,SlopeLimiter>::ComputeGodunovFlux
     for (k=0; k<ndim; k++) Wi[k] -= vface[k];
 
     // Time-integrate LHS state to half-timestep value
-    this->CalculatePrimitiveTimeDerivative(Wi, gradW, Wdot);
+    this->CalculatePrimitiveTimeDerivative(Wi, gradW, part.sound, Wdot);
     for (k=0; k<ndim; k++) Wdot[k] += part.a[k];
     for (var=0; var<nvar; var++) Wi[var] += (FLOAT) 0.5*Wdot[var]*dt;
 
@@ -154,7 +179,7 @@ void MfvMuscl<ndim, kernelclass,SlopeLimiter>::ComputeGodunovFlux
     for (k=0; k<ndim; k++) Wj[k] -= vface[k];
 
     // Time-integrate RHS state to half-timestep value
-    this->CalculatePrimitiveTimeDerivative(Wj, gradW, Wdot);
+    this->CalculatePrimitiveTimeDerivative(Wj, gradW, neibpart[j].sound, Wdot);
     for (k=0; k<ndim; k++) Wdot[k] += neibpart[j].a[k];
     for (var=0; var<nvar; var++) Wj[var] += (FLOAT) 0.5*Wdot[var]*dt;
 
@@ -168,32 +193,55 @@ void MfvMuscl<ndim, kernelclass,SlopeLimiter>::ComputeGodunovFlux
     assert(isnormal(Wi[ipress]));
     assert(isnormal(Wj[irho]));
     assert(isnormal(Wj[ipress]));
-    /*assert(Wi[irho] > 0.0);
-    assert(Wi[ipress] > 0.0);
-    assert(Wj[irho] > 0.0);
-    assert(Wj[ipress] > 0.0);*/
 
     // Calculate Godunov flux using the selected Riemann solver
     if (RiemannSolverType == exact) {
-      riemannExact.ComputeFluxes(Wj, Wi, Aunit, vface, flux);
+      riemannExact.ComputeFluxes(Wi, Wj, Aunit, vface, flux);
     }
     else {
-      riemannHLLC.ComputeFluxes(Wj, Wi, Aunit, vface, flux);
+      // Compute both the primitive and conserved quantities so the HLLC solver doesn't
+      // have to make assumptions about the EOS.
+      EosParticleProxy<ndim> Pi, Pj;
+      for (int k=0; k <ndim; k++) {
+        Pi.r[k] = Pj.r[k] = rface[k];
+        Pi.v[k] = Wi[k];
+        Pj.v[k] = Wj[k];
+      }
+      Pi.rho = Wi[irho];
+      Pj.rho = Wj[irho];
+      Pi.p = Wi[ipress];
+      Pj.p = Wj[ipress];
+
+      // Convert primitive to conserved and construct state object
+      Pi.u = this->eos->InternalEnergyFromPressure(Pi);
+      Pj.u = this->eos->InternalEnergyFromPressure(Pj);
+
+      StateVector<ndim> Si, Sj;
+      this->eos->ConstructStateVector(Pi, Si);
+      this->eos->ConstructStateVector(Pj, Sj);
+
+      //riemannHLLC.ComputeFluxes(Wi, Wj, Aunit, vface, flux);
+      riemannHLLC.ComputeFluxes(Si, Sj, Aunit, vface, flux);
+    }
+
+    // Add the viscosity
+    if (need_viscosity) {
+      viscosity.ComputeViscousFlux(Wi, Wj, part.grad, neibpart[j].grad, flux) ;
     }
 
     // Finally calculate flux terms for all quantities based on Lanson & Vila gradient operators
     for (var=0; var<nvar; var++) {
       const FLOAT f = DotProduct(flux[var], Aij, ndim);
-      part.dQ[var] += f*dt;
-      part.dQdt[var] += f;
-      neibpart[j].dQ[var] -= f*dt;
-      neibpart[j].dQdt[var] -= f;
+      part.dQ[var] -= f*dt;
+      part.dQdt[var] -= f;
+      neibpart[j].dQ[var] += f*dt;
+      neibpart[j].dQdt[var] += f;
     }
 
     // Compute mass-loss moments for gravitational correction terms
     for (k=0; k<ndim; k++) {
-      part.rdmdt[k] -= (part.r[k] - neibpart[j].r[k])*DotProduct(flux[irho], Aij, ndim);
-      neibpart[j].rdmdt[k] += (part.r[k] - neibpart[j].r[k])*DotProduct(flux[irho], Aij, ndim);
+      part.rdmdt[k]        -= (part.r[k] - neibpart[j].r[k])*DotProduct(flux[irho], Aij, ndim) * dt;
+      neibpart[j].rdmdt[k] += (part.r[k] - neibpart[j].r[k])*DotProduct(flux[irho], Aij, ndim) * dt;
     }
   }
   //-----------------------------------------------------------------------------------------------

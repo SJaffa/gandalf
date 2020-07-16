@@ -27,6 +27,7 @@ class FreeFallTest(unittest.TestCase):
         errnorm= np.linalg.norm(analytical_r*lr_5[0] - lr_5, ord=1)/time.size
         self.assertLess(errnorm,self.expected_l1error)
 
+"""
 class FreeFallMeshlessTest(FreeFallTest):
     def setUp(self):
         self.sim=newsim(paramfile="tests/grav_tests/freefall.dat",sim='meshlessfv')
@@ -34,3 +35,4 @@ class FreeFallMeshlessTest(FreeFallTest):
         self.sim.SetParam("run_id",self.run_id)
         self.sim.SetParam("riemann_solver",'hllc')
         self.expected_l1error = 1e-2
+"""

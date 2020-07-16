@@ -32,12 +32,11 @@
 /// thermal physics variables, as well as scaling to dimensionless units.
 //=================================================================================================
 template <int ndim>
-Isothermal<ndim>::Isothermal(FLOAT temp0aux, FLOAT mu_bar_aux, FLOAT gamma_aux, SimUnits *units):
-  EOS<ndim>(gamma_aux),
-  temp0(temp0aux/units->temp.outscale),
-  mu_bar(mu_bar_aux)
+Isothermal<ndim>::Isothermal(Parameters* simparams, SimUnits *units):
+  EOS<ndim>(simparams->floatparams["gamma_eos"]),
+  temp0(simparams->floatparams["temp0"]/units->temp.outscale),
+  mu_bar(simparams->floatparams["mu_bar"])
 {
-  //temp0 = temp0aux/units->temp.outscale;
 }
 
 
@@ -58,7 +57,7 @@ Isothermal<ndim>::~Isothermal()
 /// Calculates and returns value of Entropic function (= P/rho^gamma) for referenced particle
 //=================================================================================================
 template <int ndim>
-FLOAT Isothermal<ndim>::EntropicFunction(Particle<ndim> &part)
+FLOAT Isothermal<ndim>::EntropicFunction(const EosParticleProxy<ndim>&part)
 {
   return gammam1*part.u*pow(part.rho,(FLOAT) 1.0 - gamma);
 }
@@ -70,7 +69,7 @@ FLOAT Isothermal<ndim>::EntropicFunction(Particle<ndim> &part)
 /// Returns isothermal sound speed of referenced SPH particle
 //=================================================================================================
 template <int ndim>
-FLOAT Isothermal<ndim>::SoundSpeed(Particle<ndim> &part)
+FLOAT Isothermal<ndim>::SoundSpeed(const EosParticleProxy<ndim>&part)
 {
   return sqrt(gammam1*part.u);
 }
@@ -82,7 +81,7 @@ FLOAT Isothermal<ndim>::SoundSpeed(Particle<ndim> &part)
 /// Returns specific internal energy of referenced SPH particle
 //=================================================================================================
 template <int ndim>
-FLOAT Isothermal<ndim>::SpecificInternalEnergy(Particle<ndim> &part)
+FLOAT Isothermal<ndim>::SpecificInternalEnergy(const EosParticleProxy<ndim>&part)
 {
   return temp0/gammam1/mu_bar;
 }
@@ -94,7 +93,7 @@ FLOAT Isothermal<ndim>::SpecificInternalEnergy(Particle<ndim> &part)
 /// Return isothermal temperature, temp0, for referenced SPH particle
 //=================================================================================================
 template <int ndim>
-FLOAT Isothermal<ndim>::Temperature(Particle<ndim> &part)
+FLOAT Isothermal<ndim>::Temperature(const EosParticleProxy<ndim>&part)
 {
   return temp0;
 }

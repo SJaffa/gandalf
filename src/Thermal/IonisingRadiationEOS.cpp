@@ -32,26 +32,26 @@
 /// variables, as well as setting internal EOS object for neutral gas.
 //=================================================================================================
 template <int ndim>
-IonisingRadiation<ndim>::IonisingRadiation
- (string gas_eos, FLOAT _temp0, FLOAT _mu_bar, FLOAT _gamma, FLOAT _rho_bary, SimUnits *units) :
-  EOS<ndim>(_gamma)
+IonisingRadiation<ndim>::IonisingRadiation(Parameters* simparams, SimUnits *units):
+ EOS<ndim>(simparams->floatparams["gamma_eos"]),
+ temp0(simparams->floatparams["temp0"]/units->temp.outscale),
+ mu_bar(simparams->floatparams["mu_bar"])
 {
   // Set 'internal' EOS for non-ionised gas
+  string gas_eos = simparams->stringparams["gas_eos"] ;
   if (gas_eos == "energy_eqn" || gas_eos == "constant_temp") {
-    eos = new Adiabatic<ndim>(_temp0, _mu_bar, _gamma);
+    eos = new Adiabatic<ndim>(simparams, units);
   }
   else if (gas_eos == "isothermal") {
-    eos = new Isothermal<ndim>(_temp0, _mu_bar, _gamma, units);
+    eos = new Isothermal<ndim>(simparams, units);
   }
   else if (gas_eos == "barotropic") {
-    eos = new Barotropic<ndim>(_temp0, _mu_bar, _gamma, _rho_bary, units);
+    eos = new Barotropic<ndim>(simparams, units);
   }
   else {
     string message = "Unrecognised parameter : gas_eos = " + gas_eos;
     ExceptionHandler::getIstance().raise(message);
   }
-  temp0 = _temp0/units->temp.outscale;
-  mu_bar = _mu_bar;
 }
 
 
@@ -65,12 +65,14 @@ IonisingRadiation<ndim>::~IonisingRadiation()
 {
 }
 
+
+
 //=================================================================================================
 //  IonisingRadiation::EntropicFunction
 /// Calculates and returns value of Entropic function (= P/rho^gamma) for referenced particle
 //=================================================================================================
 template <int ndim>
-FLOAT IonisingRadiation<ndim>::EntropicFunction(Particle<ndim> &part)
+FLOAT IonisingRadiation<ndim>::EntropicFunction(const EosParticleProxy<ndim>&part)
 {
   //return gammam1*part.u*pow(part.rho,(FLOAT) 1.0 - gamma);
   return eos->EntropicFunction(part);
@@ -83,12 +85,11 @@ FLOAT IonisingRadiation<ndim>::EntropicFunction(Particle<ndim> &part)
 /// Returns isothermal sound speed of SPH particle
 //=================================================================================================
 template <int ndim>
-FLOAT IonisingRadiation<ndim>::SoundSpeed(Particle<ndim> &part)
+FLOAT IonisingRadiation<ndim>::SoundSpeed(const EosParticleProxy<ndim>&part)
 {
   //return sqrt(gammam1*part.u);
   return eos->SoundSpeed(part);
 }
-
 
 
 //=================================================================================================
@@ -96,7 +97,7 @@ FLOAT IonisingRadiation<ndim>::SoundSpeed(Particle<ndim> &part)
 /// Returns specific internal energy
 //=================================================================================================
 template <int ndim>
-FLOAT IonisingRadiation<ndim>::SpecificInternalEnergy(Particle<ndim> &part)
+FLOAT IonisingRadiation<ndim>::SpecificInternalEnergy(const EosParticleProxy<ndim>&part)
 {
   // Checks if particle's internal energy has been changed by the ionisation routine
   // If it has it compares this new internal energy to that of the EOS and chooses the largest.
@@ -115,7 +116,7 @@ FLOAT IonisingRadiation<ndim>::SpecificInternalEnergy(Particle<ndim> &part)
 /// Returns temperature of particle.
 //=================================================================================================
 template <int ndim>
-FLOAT IonisingRadiation<ndim>::Temperature(Particle<ndim> &part)
+FLOAT IonisingRadiation<ndim>::Temperature(const EosParticleProxy<ndim>&part)
 {
   return eos->Temperature(part);
 }

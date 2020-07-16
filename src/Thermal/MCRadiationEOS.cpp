@@ -35,29 +35,28 @@
 /// Default constructor for MCRadiation EOS.  Passes and sets important thermal physics variables.
 //=================================================================================================
 template <int ndim>
-MCRadiationEOS<ndim>::MCRadiationEOS(string gas_eos, FLOAT temp0aux, FLOAT tempionaux,
-                                     FLOAT mu_bar_aux, FLOAT mu_ion_aux, FLOAT gamma_aux,
-                                     FLOAT rho_bary_aux, SimUnits *units) : EOS<ndim>(gamma_aux)
+MCRadiationEOS<ndim>::MCRadiationEOS(Parameters* simparams, SimUnits *units):
+  EOS<ndim>(simparams->floatparams["gamma_eos"]),
+  temp0(simparams->floatparams["temp0"]/units->temp.outscale),
+  mu_bar(simparams->floatparams["mu_bar"]),
+  temp_ion(simparams->floatparams["temp_ion"]/units->temp.outscale),
+  mu_ion(simparams->floatparams["mu_ion"])
 {
   // Set 'internal' EOS for non-ionised gas
+  string gas_eos = simparams->stringparams["gas_eos"] ;
   if (gas_eos == "energy_eqn" || gas_eos == "constant_temp") {
-    eos = new Adiabatic<ndim>(temp0aux, mu_bar_aux, gamma_aux);
+    eos = new Adiabatic<ndim>(simparams, units);
   }
   else if (gas_eos == "isothermal") {
-    eos = new Isothermal<ndim>(temp0aux, mu_bar_aux, gamma_aux, units);
+    eos = new Isothermal<ndim>(simparams, units);
   }
   else if (gas_eos == "barotropic") {
-    eos = new Barotropic<ndim>(temp0aux, mu_bar_aux, gamma_aux, rho_bary_aux, units);
+    eos = new Barotropic<ndim>(simparams, units);
   }
   else {
     string message = "Unrecognised parameter : gas_eos = " + gas_eos;
     ExceptionHandler::getIstance().raise(message);
   }
-
-  mu_bar   = mu_bar_aux;
-  mu_ion   = mu_ion_aux;
-  temp0    = temp0aux/units->temp.outscale;
-  temp_ion = tempionaux/units->temp.outscale;
 }
 
 
@@ -77,7 +76,7 @@ MCRadiationEOS<ndim>::~MCRadiationEOS()
 /// Calculates and returns value of Entropic function (= P/rho^gamma) for referenced particle
 //=================================================================================================
 template <int ndim>
-FLOAT MCRadiationEOS<ndim>::EntropicFunction(Particle<ndim> &part)
+FLOAT MCRadiationEOS<ndim>::EntropicFunction(const EosParticleProxy<ndim>&part)
 {
   //return gammam1*part.u*pow(part.rho,(FLOAT) 1.0 - gamma);
   return eos->EntropicFunction(part);
@@ -90,7 +89,7 @@ FLOAT MCRadiationEOS<ndim>::EntropicFunction(Particle<ndim> &part)
 /// Returns isothermal sound speed of SPH particle
 //=================================================================================================
 template <int ndim>
-FLOAT MCRadiationEOS<ndim>::SoundSpeed(Particle<ndim> &part)
+FLOAT MCRadiationEOS<ndim>::SoundSpeed(const EosParticleProxy<ndim>&part)
 {
   //return sqrt(gammam1*part.u);
   return part.ionfrac*sqrt(temp_ion/mu_ion) + (1.0 - part.ionfrac)*eos->SoundSpeed(part);
@@ -103,7 +102,7 @@ FLOAT MCRadiationEOS<ndim>::SoundSpeed(Particle<ndim> &part)
 /// Returns specific internal energy
 //=================================================================================================
 template <int ndim>
-FLOAT MCRadiationEOS<ndim>::SpecificInternalEnergy(Particle<ndim> &part)
+FLOAT MCRadiationEOS<ndim>::SpecificInternalEnergy(const EosParticleProxy<ndim>&part)
 {
   //cout << "u : " << part.ionfrac << "  " << temp_ion << "   " << gammam1 << "   " << mu_ion << "  "
   //   << (1.0 - part.ionfrac) << "   " <<  eos->SpecificInternalEnergy(part) << endl;
@@ -118,7 +117,7 @@ FLOAT MCRadiationEOS<ndim>::SpecificInternalEnergy(Particle<ndim> &part)
 /// Returns temperature of particle.
 //=================================================================================================
 template <int ndim>
-FLOAT MCRadiationEOS<ndim>::Temperature(Particle<ndim> &part)
+FLOAT MCRadiationEOS<ndim>::Temperature(const EosParticleProxy<ndim>&part)
 {
   return part.ionfrac*temp_ion + (1.0 - part.ionfrac)*eos->Temperature(part);
 }

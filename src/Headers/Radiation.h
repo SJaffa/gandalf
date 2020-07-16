@@ -25,6 +25,7 @@
 #ifndef _RADIATION_H_
 #define _RADIATION_H_
 
+#include <omp.h>
 
 #include <map>
 #include <string>
@@ -100,28 +101,70 @@ struct RadiationSource {
 //  Struct ionpar
 /// ..
 //=================================================================================================
-struct ionpar
-{
-  int sink;                         // Is particle sink
-  int fionised;
-  int neighstorcont;
-  double x;                         // Particle x,y,z co-ordinates
-  double y;
-  double z;
-  double rho;                       // Density
-  double t;                         // Temperature
-  double h;                         // Smoothing length
-  double u;                         // Specific internal energy
+template<int ndim>
+struct IonPar {
+  static const int NDIM = ndim ;
+  IonPar() {} ;
+  IonPar(const Particle<ndim>&p) {
+    // Particle props
+    for (int i=0; i < ndim; i++) r[i] = p.r[i] ;
+    rho = p.rho ;
+    h = p.h ;
+    hrangesqd = p.hrangesqd;
+    u = p.u ;
+    flags = p.flags ;
+    ptype = p.ptype ;
+    level = p.level ;
+    iorig = p.iorig ;
+    
+    sink = 1;
+    fionised = 0;
+
+    //for (int i=0; i < ndim; i++) rad_pre_acc[i] = 0 ;
+  }
+
+  IonPar(const NbodyParticle<ndim>& p) {
+    // Particle props
+    for (int i=0; i < ndim; i++) r[i] = p.r[i] ;
+    rho = 0 ;
+    h = 0 ;
+    u = 0 ;
+
+    sink = 1;
+    fionised = 1;
+
+    // for (int i=0; i < ndim; i++) rad_pre_acc[i] = 0 ;
+  }
+
+  FLOAT r[ndim];                   // Position
+  FLOAT rho;                       // Density
+  FLOAT t;                         // Temperature
+  FLOAT h;                         // Smoothing length
+  FLOAT hrangesqd ;                // Kernel extent (squared)
+  FLOAT u;                         // Specific Intenal energy
+  int ptype;                       // particle type
+  type_flag flags ;                // Particle flags
+  int level ;                      // Timestep level
+  int iorig ;                      // Particle id
+  int sink;                        // Is particle sink
+  int fionised;                   
   int *checked;
-  int *ionised;                     // Is particle ionised by source?
-  int *neigh;                       // Part. neib array (Neibs closest to sources)
-  int *neighstor;
-  double *angle;
-  double *prob;                     // Prob. of transmition from each source
-  double *photons;                  // No. of photons lost up to this point
-  double *rad_pre_acc;
+  int *ionised;                    // Is particle ionised by source?
+  int *neigh;                      // Part. neib array (Neibs closest to sources)
+  double *photons;                 // No. of photons lost up to this point
+  //double rad_pre_acc[ndim];        // Radiation pressure acceleration
+
+#ifdef _OPENMP
+  omp_lock_t lock ;
+#endif
+  
 };
 
+/* reflect the particle in a given direction about a mirror */
+template<int ndim>
+inline void reflect(IonPar<ndim>& part, int k, double x_mirror) {
+   part.r[k] = 2*x_mirror - part.r[k] ;
+}
 
 
 //=================================================================================================
@@ -162,7 +205,7 @@ class MultipleSourceIonisation : public Radiation<ndim>
 {
  public:
 
-  MultipleSourceIonisation(SphNeighbourSearch<ndim> *, float, float,
+  MultipleSourceIonisation(SphTree<ndim, ParticleType> *, float, float,
                            float, float, double, float, float, float, double);
   //MultipleSourceIonisation(SphNeighbourSearch<ndim> *,float,float,
   //                         float,float,float,float,float,float);
@@ -173,18 +216,17 @@ class MultipleSourceIonisation : public Radiation<ndim>
 
   void ionisation_intergration(int, int, NbodyParticle<ndim> **,
                                SphParticle<ndim> *, double, double,
-                               SphNeighbourSearch<ndim> *, double, double,
+                               SphTree<ndim,ParticleType> *, double, double,
                                double, double, double, double);
-  void photoncount(ionpar *,int *,double *, int &,int &,int &,int &);
-  double lost(ionpar *,int *,double *,int &, int &,int &,int &,int &);
-  void probs(int &, ionpar *, int *, int &, double *);
+  void photoncount(IonPar<ndim> *, const vector<int>&, int, int, int, int&);
+  double photons(IonPar<ndim> *, const vector<int>&, int, int, int, int, int&);
+  double probs(int, IonPar<ndim> *, int, int);
 
 
-  SphNeighbourSearch<ndim> *sphneib;
+  SphTree<ndim, ParticleType> *sphneib;
   float mu_bar,temp0,mu_ion,temp_ion,gamma_eos,scale,tempscale; //cmscott
   double rad_cont,Ndotmin; //cmscott
   //float mu_bar,temp0,mu_ion,temp_ion,Ndotmin,gamma_eos,scale,tempscale;
-  vector< vector<int> > ionisation_fraction;
 };
 
 

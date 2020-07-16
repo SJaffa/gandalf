@@ -102,18 +102,38 @@ void MfvRungeKutta<ndim, kernelclass,SlopeLimiter>::ComputeGodunovFlux
     invdrmagaux = 1.0/sqrt(drsqd + small_number);
     for (k=0; k<ndim; k++) dr_unit[k] = draux[k]*invdrmagaux;
 
-    // Calculate psitilda values
-    for (k=0; k<ndim; k++) {
-      psitildai[k] = (FLOAT) 0.0;
-      psitildaj[k] = (FLOAT) 0.0;
-      for (int kk=0; kk<ndim; kk++) {
-        psitildai[k] += neibpart[j].B[k][kk]*draux[kk]*neibpart[j].hfactor*
-            kern.w0_s2(drsqd*invh_j*invh_j)*volume_j;
-        psitildaj[k] -= part.B[k][kk]*draux[kk]*part.hfactor*
-            kern.w0_s2(drsqd*invh_i*invh_i)*volume_i;
+    // Compute psi-tilda values using integral / sph gradients.
+    if (not part.flags.check(bad_gradients)) {
+      for (k=0; k<ndim; k++) {
+        psitildaj[k] = 0;
+        for (int kk=0; kk<ndim; kk++)
+          psitildaj[k] += part.B[k][kk]*draux[kk]*part.hfactor*
+              kern.w0_s2(drsqd*invh_i*invh_i)*volume_i;
       }
-      Aij[k] = volume_i*psitildaj[k] - volume_j*psitildai[k];
     }
+    else {
+      double dr = sqrt(drsqd) + small_number ;
+      double w = part.hfactor*volume_i * kern.w1(dr*invh_i);
+      for (k=0; k<ndim; k++)  psitildaj[k] = - (draux[k]/dr) * w;
+    }
+
+    if (not neibpart[j].flags.check(bad_gradients)) {
+      for (k=0; k<ndim; k++) {
+      psitildai[k] = 0;
+      for (int kk=0; kk<ndim; kk++)
+        psitildai[k] -= neibpart[j].B[k][kk]*draux[kk]*neibpart[j].hfactor*
+          kern.w0_s2(drsqd*invh_j*invh_j)*volume_j;
+      }
+    }
+    else {
+      double dr = sqrt(drsqd) + small_number ;
+      double w = neibpart[j].hfactor*volume_j * kern.w1(dr*invh_j);
+      for (k=0; k<ndim; k++) psitildai[k] = + (draux[k]/dr) * w;
+    }
+
+    // Compute the face area
+    for (k=0; k<ndim; k++)
+      Aij[k] = volume_i*psitildaj[k] - volume_j*psitildai[k];
 
     // Calculate position and velocity of the face
     if (staticParticles) {
@@ -159,12 +179,12 @@ void MfvRungeKutta<ndim, kernelclass,SlopeLimiter>::ComputeGodunovFlux
     }
 
     // Time-integrate LHS state to half-timestep value
-    this->CalculatePrimitiveTimeDerivative(Wleft, gradW, Wdot);
+    this->CalculatePrimitiveTimeDerivative(Wleft, gradW, part.sound, Wdot);
     for (k=0; k<ndim; k++) Wdot[k] += part.a[k];
     for (var=0; var<nvar; var++) Wleft[var] += (FLOAT) Wdot[var]*dt;
 
     // Time-integrate RHS state to half-timestep value
-    this->CalculatePrimitiveTimeDerivative(Wright, gradW, Wdot);
+    this->CalculatePrimitiveTimeDerivative(Wright, gradW, neibpart[j].sound, Wdot);
     for (k=0; k<ndim; k++) Wdot[k] += neibpart[j].a[k];
     for (var=0; var<nvar; var++) Wright[var] += (FLOAT) Wdot[var]*dt;
 

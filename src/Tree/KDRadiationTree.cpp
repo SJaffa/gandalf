@@ -410,7 +410,7 @@ void KDRadiationTree<ndim,nfreq,ParticleType,CellType>::DivideTreeCell
   // Now divide the new child cells as a recursive function
 #if defined _OPENMP
   if (pow(2,cell.level) < Nthreads) {
-#pragma omp parallel default(none) private(i) shared(cell,ifirst,ilast,partdata) num_threads(2)
+#pragma omp parallel default(shared) private(i) num_threads(2)
     {
 #pragma omp for
       for (i=0; i<2; i++) {
@@ -555,7 +555,7 @@ void KDRadiationTree<ndim,nfreq,ParticleType,CellType>::StockTree
   // If cell is not leaf, stock child cells
   if (cell.level != ltot) {
     if (pow(2,cell.level) < Nthreads) {
-#pragma omp parallel for default(none) private(i) shared(cell,partdata,stock_leaf) num_threads(2)
+#pragma omp parallel for default(shared) private(i) num_threads(2)
       for (i=0; i<2; i++) {
         if (i == 0) StockTree(radcell[cell.c1],partdata,stock_leaf);
         else if (i == 1) StockTree(radcell[cell.c2],partdata,stock_leaf);
@@ -1036,7 +1036,7 @@ void KDRadiationTree<ndim,nfreq,ParticleType,CellType>::SumRadiationField
   if (cell.level != level) {
 #if defined _OPENMP
     if (pow(2,cell.level) < Nthreads) {
-#pragma omp parallel for default(none) private(i) shared(cell) num_threads(2)
+#pragma omp parallel for default(shared) private(i) num_threads(2)
       for (i=0; i<2; i++) {
         if (i == 0) SumRadiationField(level,radcell[cell.c1]);
         else if (i == 1) SumRadiationField(level,radcell[cell.c2]);
