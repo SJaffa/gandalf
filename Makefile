@@ -21,7 +21,7 @@
 
 
 CPP                = 
-PYTHON             = python
+PYTHON             = python2.7
 COMPILER_MODE      = FAST
 PRECISION          = DOUBLE
 OPENMP             = 1
