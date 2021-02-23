@@ -39,7 +39,7 @@ FFTW_LIBRARY       =
 
 # GNU Scientific library flags and paths.  If paths are empty, tries standard default linux paths.
 #--------------------------------------------------------------------------------------------------
-GSL                =
+GSL                = 1
 GSL_INCLUDE        =
 GSL_LIBRARY        =
 
@@ -49,8 +49,8 @@ GSL_LIBRARY        =
 # utilities.  If you have multiple versions of python installed on your
 # computer, then select the prefered version with the PYTHON variable above.
 #--------------------------------------------------------------------------------------------------
-PYLIB =
-NUMPY =
+PYLIB = /soft/python/lib64/python2.7/site-packages
+NUMPY = /soft/python/lib64/python2.7/site-packages/numpy
 GTEST = $(GTEST_DIR)
 
 
